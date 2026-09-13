@@ -1,0 +1,76 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ---------- Virtual environments ----------
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ---------- Databases ----------
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+worldmonitor.db
+
+# ---------- Scan outputs (regenerated on every run) ----------
+reports/
+pocs/
+
+# ---------- Coverage / test cache ----------
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# ---------- IDE ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---------- OS ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------- Logs ----------
+*.log
+logs/
+
+# ---------- Environment / secrets ----------
+.env
+.env.*
+*.pem
+*.key
+secrets.json
+
+# ---------- Upload staging (never commit this folder) ----------
+upload-staging/
+
+# ---------- Temp / scratch ----------
+*.tmp
+*.bak
+*.orig
+tmp/
+scratch/

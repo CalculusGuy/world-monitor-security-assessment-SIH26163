@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SentinelGrid — Open Signal Dashboard (SUDARSHAN test target)</title>
+  <style>
+    :root{
+      --bg:#050505; --card:#111; --border:#222;
+      --green:#4ade80; --blue:#60a5fa; --amber:#fbbf24; --red:#f87171;
+      --text:#f3f4f6; --muted:#9ca3af;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    *{box-sizing:border-box; margin:0; padding:0;}
+    body{background:var(--bg); color:var(--text); font-family:var(--font-sans); line-height:1.5;}
+    a{color:inherit; text-decoration:none;}
+    header.topbar{
+      position:sticky; top:0; z-index:50; background:rgba(17,17,17,.85);
+      backdrop-filter:blur(10px); border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 1.25rem; height:3.5rem; flex-wrap:wrap; gap:.5rem;
+    }
+    .brand{display:flex; align-items:center; gap:.5rem; font-weight:700; font-size:.95rem;}
+    .brand .tag{font-family:var(--font-mono); font-size:.65rem; color:var(--muted); font-weight:400; border:1px solid var(--border); padding:.15rem .4rem; border-radius:.2rem;}
+    nav.primary{display:flex; gap:1rem; font-family:var(--font-mono); font-size:.75rem; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); flex-wrap:wrap;}
+    nav.primary a:hover, nav.primary a.active{color:var(--green);}
+    main{max-width:1200px; margin:0 auto; padding:1.5rem 1.25rem 3rem;}
+    h1{font-size:1.6rem; font-weight:700; letter-spacing:-.01em;}
+    .live-indicator{font-family:var(--font-mono); font-size:.75rem; color:var(--muted); margin-top:.35rem;}
+    .live-indicator .dot{color:var(--green);}
+
+    form.search-form{
+      display:flex; gap:.5rem; margin:1.25rem 0; max-width:32rem;
+    }
+    form.search-form input[type="text"]{
+      flex:1; background:var(--card); border:1px solid var(--border); color:var(--text);
+      padding:.6rem .75rem; border-radius:.25rem; font-family:var(--font-mono); font-size:.85rem;
+    }
+    form.search-form button{
+      background:var(--green); color:#050505; border:none; padding:.6rem 1rem;
+      border-radius:.25rem; font-family:var(--font-mono); font-size:.75rem; font-weight:700;
+      text-transform:uppercase; cursor:pointer;
+    }
+    .search-echo{
+      font-family:var(--font-mono); font-size:.8rem; color:var(--muted); margin:-0.5rem 0 1rem;
+    }
+
+    .grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(320px,1fr)); gap:1rem; margin-top:1rem;}
+    .panel{background:var(--card); border:1px solid var(--border); border-radius:.35rem; padding:1.1rem;}
+    .panel h2{font-size:.95rem; font-weight:700; margin-bottom:.85rem; display:flex; align-items:center; justify-content:space-between;}
+    .panel h2 time{font-family:var(--font-mono); font-size:.65rem; color:var(--muted); font-weight:400; text-transform:uppercase;}
+
+    ul.news-list{list-style:none; display:flex; flex-direction:column; gap:.9rem;}
+    .news-title{font-weight:600; font-size:.9rem;}
+    .news-meta{font-family:var(--font-mono); font-size:.7rem; color:var(--muted); margin:.15rem 0;}
+    .news-body{font-size:.82rem; color:var(--muted); line-height:1.4;}
+
+    table{width:100%; border-collapse:collapse; font-size:.82rem;}
+    table th{text-align:left; font-family:var(--font-mono); font-size:.65rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding-bottom:.5rem; border-bottom:1px solid var(--border);}
+    table td{padding:.5rem 0; border-bottom:1px solid #1a1a1a;}
+    .score{font-family:var(--font-mono); font-weight:700; padding:.1rem .4rem; border-radius:.2rem; display:inline-block;}
+    .score-high{color:var(--red);}
+    .score-mid{color:var(--amber);}
+    .score-low{color:var(--green);}
+    .up{color:var(--green); font-family:var(--font-mono);}
+    .down{color:var(--red); font-family:var(--font-mono);}
+
+    .auth-panel form{display:flex; flex-direction:column; gap:.6rem;}
+    .auth-panel label{font-family:var(--font-mono); font-size:.7rem; text-transform:uppercase; color:var(--muted);}
+    .auth-panel input{background:var(--bg); border:1px solid var(--border); color:var(--text); padding:.55rem .65rem; border-radius:.25rem; font-size:.85rem;}
+    .auth-panel button{background:var(--blue); color:#050505; border:none; padding:.6rem; border-radius:.25rem; font-weight:700; font-family:var(--font-mono); font-size:.75rem; text-transform:uppercase; cursor:pointer; margin-top:.3rem;}
+    .auth-msg{font-family:var(--font-mono); font-size:.75rem; color:var(--amber); min-height:1rem;}
+
+    .feedback-panel textarea{
+      width:100%; min-height:80px; background:var(--bg); border:1px solid var(--border);
+      color:var(--text); border-radius:.25rem; padding:.6rem; font-family:var(--font-sans); font-size:.85rem; resize:vertical;
+    }
+    .feedback-panel button{margin-top:.6rem; background:var(--green); color:#050505; border:none; padding:.5rem 1rem; border-radius:.25rem; font-weight:700; font-family:var(--font-mono); font-size:.7rem; text-transform:uppercase; cursor:pointer;}
+    .feedback-list{margin-top:1rem; display:flex; flex-direction:column; gap:.6rem; font-size:.8rem; color:var(--muted);}
+    .feedback-list .entry{border-top:1px solid var(--border); padding-top:.5rem;}
+
+    .profile-link-row{margin-top:.6rem; font-family:var(--font-mono); font-size:.7rem; color:var(--muted);}
+    .profile-link-row a{color:var(--blue);}
+
+    footer.footer{
+      text-align:center; padding:2rem 1rem; font-family:var(--font-mono); font-size:.7rem;
+      color:var(--muted); border-top:1px solid var(--border); margin-top:2rem;
+    }
+
+    .map-panel{
+      background:var(--card); border:1px solid var(--border); border-radius:.35rem;
+      padding:1.1rem; margin-top:1.25rem; position:relative; overflow:hidden;
+    }
+    .map-panel h2{font-size:.95rem; font-weight:700; margin-bottom:.75rem;}
+    .map-wrap{position:relative; width:100%; aspect-ratio:2/1; background:#070707; border-radius:.25rem; border:1px solid #1a1a1a;}
+    .map-wrap svg{width:100%; height:100%; display:block;}
+    .map-dot{fill:#1f6b3f;}
+    .map-marker circle.pulse{
+      animation:mapPing 2.4s ease-out infinite;
+      transform-origin:center;
+    }
+    @keyframes mapPing{
+      0%{r:3; opacity:.9;}
+      70%{r:16; opacity:0;}
+      100%{r:16; opacity:0;}
+    }
+    .map-legend{
+      display:flex; gap:1.25rem; flex-wrap:wrap; margin-top:.75rem;
+      font-family:var(--font-mono); font-size:.7rem; color:var(--muted);
+    }
+    .map-legend span{display:inline-flex; align-items:center; gap:.4rem;}
+    .map-legend .swatch{width:.6rem; height:.6rem; border-radius:50%; display:inline-block;}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🛰️ SentinelGrid <span class="tag">local mock — SUDARSHAN test target</span></div>
+    <nav class="primary">
+      <a href="/" class="active">World</a>
+      <a href="/tech.html">Tech</a>
+      <a href="/finance.html">Finance</a>
+      <a href="/energy.html">Energy</a>
+      <a href="/trending.html">Trending</a>
+      <a href="#search-panel">Search</a>
+      <a href="#account-panel">Account</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Signal Overview</h1>
+    <p class="live-indicator"><span class="dot">●</span> Mock live feed <span id="last-updated">just now</span></p>
+
+    <!-- Search form: reflects the raw query term back to the page.
+         Intentional test surface for reflected-XSS / input-handling checks. -->
+    <form class="search-form" id="search-panel" method="GET" action="">
+      <input type="text" id="q" name="q" placeholder="Search signals, countries, tickers…" autocomplete="off">
+      <button type="submit">Search</button>
+    </form>
+    <div class="search-echo" id="search-echo"></div>
+
+    <section class="map-panel">
+      <h2>Global Signal Map</h2>
+      <div class="map-wrap">
+        <svg id="world-map-svg" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div class="map-legend">
+        <span><span class="swatch" style="background:var(--red);"></span> High instability</span>
+        <span><span class="swatch" style="background:var(--amber);"></span> Elevated</span>
+        <span><span class="swatch" style="background:var(--green);"></span> Stable / monitored</span>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Signal Feed <time id="feed-updated">just now</time></h2>
+        <ul id="news-list" class="news-list">
+          <li>
+            <div class="news-title">Border talks stall after third round</div>
+            <div class="news-meta">Wire Service A · 2026-09-08 09:12</div>
+            <div class="news-body">Negotiators from both delegations left without a joint statement.</div>
+          </li>
+          <li>
+            <div class="news-title">Regional coalition announces joint patrol</div>
+            <div class="news-meta">Wire Service B · 2026-09-06 11:30</div>
+            <div class="news-body">The agreement covers shared maritime routes for the next fiscal year.</div>
+          </li>
+          <li>
+            <div class="news-title">Cyber unit reports rise in scanning activity</div>
+            <div class="news-meta">Wire Service B · 2026-09-04 19:11</div>
+            <div class="news-body">The advisory notes a spike in reconnaissance traffic against utilities.</div>
+          </li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <h2>Region Instability Index (RII)</h2>
+        <table class="rii-table">
+          <thead><tr><th>Region</th><th>Score</th><th>Trend</th></tr></thead>
+          <tbody id="rii-body">
+            <tr><td><a href="/country.html?code=CHR">Region Charlie</a></td><td class="score score-high">88</td><td>▲</td></tr>
+            <tr><td><a href="/country.html?code=ALP">Region Alpha</a></td><td class="score score-high">72</td><td>▲</td></tr>
+            <tr><td><a href="/country.html?code=ECH">Region Echo</a></td><td class="score score-mid">56</td><td>▲</td></tr>
+            <tr><td><a href="/country.html?code=BRV">Region Bravo</a></td><td class="score score-mid">41</td><td>—</td></tr>
+            <tr><td><a href="/country.html?code=FOX">Region Foxtrot</a></td><td class="score score-low">34</td><td>▼</td></tr>
+            <tr><td><a href="/country.html?code=DLT">Region Delta</a></td><td class="score score-low">23</td><td>▼</td></tr>
+          </tbody>
+        </table>
+        <p class="profile-link-row">Region pages accept a <code>?code=</code> parameter — useful for testing parameter handling and IDOR-style checks.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Market Radar</h2>
+        <table class="finance-table">
+          <thead><tr><th>Ticker</th><th>Price</th><th>Change</th></tr></thead>
+          <tbody id="finance-body">
+            <tr><td>IDX-COMP</td><td>6421.30</td><td class="down">-0.42%</td></tr>
+            <tr><td>ENRG-FUT</td><td>78.55</td><td class="up">1.13%</td></tr>
+            <tr><td>GLD-SPOT</td><td>2384.10</td><td class="up">0.08%</td></tr>
+            <tr><td>TECH-100</td><td>15230.77</td><td class="down">-1.05%</td></tr>
+            <tr><td>BOND-10Y</td><td>4.32</td><td class="up">0.02%</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Stub login form. No real auth backend — client-side only.
+           Left deliberately unvalidated so a DAST engine has a
+           credentials-style form to exercise (injection payloads,
+           boundary lengths, encoding checks, etc). -->
+      <section class="panel auth-panel" id="account-panel">
+        <h2>Account Access <span style="font-family:var(--font-mono); font-size:.65rem; color:var(--muted);">stub — no real auth</span></h2>
+        <form id="login-form">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" autocomplete="off">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="off">
+          <button type="submit">Sign in</button>
+        </form>
+        <div class="auth-msg" id="auth-msg"></div>
+      </section>
+
+      <!-- Feedback / comment panel: stores and re-renders user input
+           client-side, another common DAST probe point (stored-XSS-style
+           reflection, though here it never leaves the browser tab). -->
+      <section class="panel feedback-panel">
+        <h2>Analyst Notes</h2>
+        <form id="feedback-form">
+          <textarea id="feedback-text" placeholder="Leave a note about this signal set…"></textarea>
+          <button type="submit">Post note</button>
+        </form>
+        <div class="feedback-list" id="feedback-list"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    Mock data only. Local demo build for security testing — not a production application.
+  </footer>
+
+  <script>
+    // ---- Query-string search echo -------------------------------------
+    // Renders the raw "q" param back onto the page via innerHTML so a
+    // DAST scanner can exercise reflected-XSS detection against a known,
+    // intentionally-unsanitized sink. Do not sanitize this — the whole
+    // point of this element is to be a discoverable, labeled test sink.
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('q');
+      const input = document.getElementById('q');
+      const echo = document.getElementById('search-echo');
+      if (q !== null) {
+        input.value = q;
+        echo.innerHTML = 'Showing mock results for: ' + q;
+      }
+      document.querySelector('.search-form').addEventListener('submit', function (e) {
+        // Let the GET submission reload the page with ?q=... in the URL,
+        // which is what re-triggers the echo above.
+      });
+    })();
+
+    // ---- World map (dot-matrix, generated at runtime) -------------------
+    // Renders an approximate real-world landmass outline as a stippled
+    // dot grid (a common dashboard style) plus a few pulsing hotspot
+    // markers tied to the Region Instability Index above. Continent
+    // shapes are rough hand-authored approximations for visual purposes
+    // only — not geographic survey data.
+    (function () {
+      const svg = document.getElementById('world-map-svg');
+      const W = 1000, H = 500;
+
+      // Rough continent outlines as [lat, lon] vertex lists.
+      const continents = {
+        northAmerica: [[72,-168],[70,-140],[60,-95],[49,-95],[49,-125],[32,-117],[25,-97],[18,-95],[16,-90],[14,-83],[9,-77],[7,-77],[8,-82],[15,-83],[20,-87],[30,-115],[45,-124],[60,-140],[72,-168]],
+        southAmerica: [[12,-72],[5,-77],[-4,-81],[-18,-70],[-25,-70],[-33,-71],[-45,-73],[-55,-68],[-52,-58],[-34,-58],[-23,-43],[-8,-35],[2,-50],[8,-60],[12,-72]],
+        europe: [[71,25],[65,30],[60,30],[55,40],[45,40],[43,25],[40,20],[43,13],[45,5],[50,0],[55,5],[60,5],[65,15],[71,25]],
+        africa: [[37,10],[32,-10],[15,-17],[5,-10],[-5,10],[-15,12],[-25,15],[-34,18],[-34,25],[-25,33],[-10,40],[0,42],[10,45],[15,40],[20,38],[30,32],[37,10]],
+        asia: [[77,60],[70,90],[65,140],[60,170],[50,140],[40,130],[30,122],[20,110],[10,105],[5,98],[1,104],[8,80],[15,75],[20,70],[25,60],[30,50],[35,35],[40,28],[45,35],[55,40],[60,45],[70,55],[77,60]],
+        australia: [[-11,130],[-15,140],[-20,148],[-25,153],[-33,151],[-38,145],[-35,137],[-31,129],[-25,113],[-18,122],[-14,127],[-11,130]]
+      };
+
+      function project(lat, lon) {
+        return [ (lon + 180) / 360 * W, (90 - lat) / 180 * H ];
+      }
+
+      function pointInPolygon(x, y, poly) {
+        let inside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+          const [xi, yi] = poly[i], [xj, yj] = poly[j];
+          if (((yi > y) !== (yj > y)) &&
+              (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+          }
+        }
+        return inside;
+      }
+
+      const polys = Object.values(continents).map(function (verts) {
+        return verts.map(function (v) { return project(v[0], v[1]); });
+      });
+
+      const spacing = 9;
+      const frag = document.createDocumentFragment();
+      for (let y = spacing / 2; y < H; y += spacing) {
+        for (let x = spacing / 2; x < W; x += spacing) {
+          for (let p = 0; p < polys.length; p++) {
+            if (pointInPolygon(x, y, polys[p])) {
+              const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              dot.setAttribute('cx', x.toFixed(1));
+              dot.setAttribute('cy', y.toFixed(1));
+              dot.setAttribute('r', '1.4');
+              dot.setAttribute('class', 'map-dot');
+              frag.appendChild(dot);
+              break;
+            }
+          }
+        }
+      }
+      svg.appendChild(frag);
+
+      // Hotspot markers tied to the RII table above.
+      const hotspots = [
+        { lat: 30, lon: 45, level: 'high' },   // Region Charlie
+        { lat: 50, lon: 30, level: 'high' },   // Region Alpha
+        { lat: 20, lon: 78, level: 'mid' },    // Region Echo
+        { lat: 8, lon: 0, level: 'mid' },      // Region Bravo
+        { lat: 10, lon: 105, level: 'low' },   // Region Foxtrot
+        { lat: -15, lon: -60, level: 'low' }   // Region Delta
+      ];
+      const colors = { high: 'var(--red)', mid: 'var(--amber)', low: 'var(--green)' };
+      hotspots.forEach(function (h) {
+        const [x, y] = project(h.lat, h.lon);
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'map-marker');
+        const pulse = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        pulse.setAttribute('cx', x); pulse.setAttribute('cy', y); pulse.setAttribute('r', '3');
+        pulse.setAttribute('fill', colors[h.level]); pulse.setAttribute('class', 'pulse');
+        const core = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        core.setAttribute('cx', x); core.setAttribute('cy', y); core.setAttribute('r', '3');
+        core.setAttribute('fill', colors[h.level]);
+        g.appendChild(pulse); g.appendChild(core);
+        svg.appendChild(g);
+      });
+    })();
+
+    // ---- Mock "live" feed polling --------------------------------------
+    // Mirrors the polling pattern of a real dashboard: hits a JSON
+    // endpoint on an interval and swaps the news list. Falls back to a
+    // small local rotation if no backend is present, so this file still
+    // demonstrates DOM-churn behavior when opened standalone.
+    const VARIANT = 'world';
+    const FALLBACK_ITEMS = [
+      [
+        { title: 'Border talks stall after third round', source: 'Wire Service A', published_at: '2026-09-08 09:12', content: 'Negotiators from both delegations left without a joint statement.' },
+        { title: 'Regional coalition announces joint patrol', source: 'Wire Service B', published_at: '2026-09-06 11:30', content: 'The agreement covers shared maritime routes for the next fiscal year.' },
+        { title: 'Cyber unit reports rise in scanning activity', source: 'Wire Service B', published_at: '2026-09-04 19:11', content: 'The advisory notes a spike in reconnaissance traffic against utilities.' }
+      ],
+      [
+        { title: 'Port authority extends inspection window', source: 'Wire Service A', published_at: '2026-09-09 06:40', content: 'Extended checks apply to vessels arriving from three flagged registries.' },
+        { title: 'Utility grid reports brief frequency dip', source: 'Wire Service C', published_at: '2026-09-09 07:55', content: 'Operators say automatic load-shedding resolved the dip within minutes.' },
+        { title: 'Diplomatic delegation reschedules visit', source: 'Wire Service A', published_at: '2026-09-09 08:20', content: 'No reason was given for the change in dates.' }
+      ]
+    ];
+    let fallbackIndex = 0;
+
+    function renderNews(items) {
+      const list = document.getElementById('news-list');
+      list.innerHTML = '';
+      items.forEach(function (item) {
+        const li = document.createElement('li');
+        const title = document.createElement('div');
+        title.className = 'news-title';
+        title.textContent = item.title;
+        const meta = document.createElement('div');
+        meta.className = 'news-meta';
+        meta.textContent = item.source + ' · ' + item.published_at;
+        const body = document.createElement('div');
+        body.className = 'news-body';
+        body.textContent = item.content;
+        li.appendChild(title);
+        li.appendChild(meta);
+        li.appendChild(body);
+        list.appendChild(li);
+      });
+      const stamp = 'updated ' + new Date().toLocaleTimeString();
+      document.getElementById('last-updated').textContent = stamp;
+      document.getElementById('feed-updated').textContent = stamp;
+    }
+
+    function refreshNews() {
+      fetch('/api/dashboard-data?variant=' + VARIANT)
+        .then(function (r) { return r.json(); })
+        .then(renderNews)
+        .catch(function () {
+          renderNews(FALLBACK_ITEMS[fallbackIndex % FALLBACK_ITEMS.length]);
+          fallbackIndex++;
+        });
+    }
+    setInterval(refreshNews, 8000);
+
+    // ---- Stub login handler ---------------------------------------------
+    // Purely client-side; never sends credentials anywhere. Useful as a
+    // labeled, harmless "auth form" target for a scanner's form-discovery
+    // and input-fuzzing routines.
+    document.getElementById('login-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const user = document.getElementById('username').value;
+      document.getElementById('auth-msg').textContent =
+        user ? ('Mock only — no account "' + user + '" was created or checked.') : 'Enter a username to test the form.';
+    });
+
+    // ---- Analyst notes (client-side only, no persistence) ---------------
+    document.getElementById('feedback-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const textEl = document.getElementById('feedback-text');
+      const val = textEl.value;
+      if (!val.trim()) return;
+      const entry = document.createElement('div');
+      entry.className = 'entry';
+      entry.textContent = val; // textContent, not innerHTML — kept safe by default
+      document.getElementById('feedback-list').prepend(entry);
+      textEl.value = '';
+    });
+  </script>
+</body>
+</html>

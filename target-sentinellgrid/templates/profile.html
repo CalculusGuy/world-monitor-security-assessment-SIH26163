@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Profile — World Monitor{% endblock %}
+{% block content %}
+<h1>User Profile</h1>
+<p class="debug-note">Logged in as session user_id={{ session_user_id }}. Viewing user_id={{ requested_id }}.</p>
+
+{% if user %}
+<table class="profile-table">
+  <tr><th>ID</th><td>{{ user.id }}</td></tr>
+  <tr><th>Username</th><td>{{ user.username }}</td></tr>
+  <tr><th>Email</th><td>{{ user.email }}</td></tr>
+  <tr><th>Role</th><td>{{ user.role }}</td></tr>
+  <tr><th>Internal Notes</th><td>{{ user.internal_notes }}</td></tr>
+</table>
+{% else %}
+<p class="empty">No user found with id {{ requested_id }}.</p>
+{% endif %}
+
+<p class="debug-note">Try changing <code>?user_id=</code> in the URL to view other accounts.</p>
+{% endblock %}

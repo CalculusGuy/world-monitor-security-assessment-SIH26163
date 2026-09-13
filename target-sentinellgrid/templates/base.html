@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}World Monitor (Local Clone){% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🌐 World Monitor <span class="tag">local clone — SUDARSHAN test target</span></div>
+    <nav>
+      <a href="/world" class="{{ 'active' if variant == 'world' }}">World</a>
+      <a href="/tech" class="{{ 'active' if variant == 'tech' }}">Tech</a>
+      <a href="/finance" class="{{ 'active' if variant == 'finance' }}">Finance</a>
+      <a href="/energy" class="{{ 'active' if variant == 'energy' }}">Energy</a>
+      <a href="/trending">Trending</a>
+      <a href="/search">Search</a>
+      <a href="/profile">Profile</a>
+    </nav>
+  </header>
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    Mock data only. Local demo build for security testing — not a production application.
+  </footer>
+</body>
+</html>

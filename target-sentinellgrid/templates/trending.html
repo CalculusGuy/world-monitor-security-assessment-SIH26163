@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Trending — World Monitor{% endblock %}
+{% block content %}
+<h1>Trending Topics</h1>
+
+<p>Add <code>?topic=...</code> to this page's URL to pin a topic to the top (used by shared links from the newsroom).</p>
+
+<div id="pinned-topic" class="pinned-topic"></div>
+
+<ul class="trending-list">
+  {% for t in topics %}
+  <li>{{ t.title }}</li>
+  {% endfor %}
+</ul>
+
+<script src="/static/js/trending.js"></script>
+{% endblock %}

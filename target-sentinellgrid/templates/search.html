@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Search — World Monitor{% endblock %}
+{% block content %}
+<h1>Search News</h1>
+<form method="get" action="/search" class="search-form">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search headlines...">
+  <button type="submit">Search</button>
+</form>
+
+<p class="debug-note">
+  Debug (demo build only): executed query —
+  <code>{{ executed_sql }}</code>
+</p>
+
+{% if error %}
+  <p class="error">SQL error: {{ error }}</p>
+{% endif %}
+
+<table class="results-table">
+  <tbody>
+    {% for row in results %}
+    <tr>
+      {% for value in row.values() %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    {% else %}
+    <tr><td class="empty">No results.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Admin — Network Ping{% endblock %}
+{% block content %}
+<h1>Admin: Network Diagnostics</h1>
+<p class="debug-note">Internal tool — not linked from the main nav.</p>
+
+<form method="get" action="/admin/ping" class="search-form">
+  <input type="text" name="host" value="{{ host }}" placeholder="hostname or IP">
+  <button type="submit">Ping</button>
+</form>
+
+{% if output is not none %}
+<pre class="ping-output">{{ output }}</pre>
+{% endif %}
+{% endblock %}

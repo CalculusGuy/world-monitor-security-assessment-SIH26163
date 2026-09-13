@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Country — SentinelGrid{% endblock %}
+
+{% block content %}
+<h1>Region Detail</h1>
+
+<form class="search-form" method="GET" action="/country">
+  <input type="text" name="code" value="{{ code }}" placeholder="Region code (e.g., CHR)" autocomplete="off">
+  <button type="submit">Lookup</button>
+</form>
+
+{% if region %}
+<table>
+  <tr><td><strong>Code</strong></td><td>{{ region['code'] }}</td></tr>
+  <tr><td><strong>Name</strong></td><td>{{ region['name'] }}</td></tr>
+  <tr><td><strong>RII Score</strong></td><td>{{ region['rii_score'] }}</td></tr>
+  <tr><td><strong>Trend</strong></td><td>{{ region['trend'] }}</td></tr>
+  <tr><td><strong>Notes</strong></td><td>{{ region['notes'] }}</td></tr>
+</table>
+{% elif code %}
+<p>No region found for code: {{ code }}</p>
+{% endif %}
+
+{% endblock %}
